@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Worldle Studio</title>
+  </head>
+  <body>
+    <div class="ambient-layer" aria-hidden="true">
+      <div class="orb orb-a"></div>
+      <div class="orb orb-b"></div>
+      <div class="orb orb-c"></div>
+      <div class="grain"></div>
+    </div>
+
+    <main class="app-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Unlimited Local Play</p>
+          <h1>Worldle Studio</h1>
+          <p class="subtitle">Guess the country from the silhouette in five turns.</p>
+        </div>
+        <div class="pill" id="round-pill">Round 1</div>
+      </header>
+
+      <section class="card silhouette-card" aria-label="Country silhouette">
+        <div class="silhouette-title-row">
+          <h2>Silhouette</h2>
+          <p id="guesses-left">5 guesses left</p>
+        </div>
+        <div class="silhouette-stage" id="silhouette-stage">
+          <svg id="silhouette-svg" viewBox="0 0 440 280" role="img" aria-label="Country silhouette">
+            <defs>
+              <linearGradient id="shapeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#0f172a"></stop>
+                <stop offset="100%" stop-color="#1f2937"></stop>
+              </linearGradient>
+            </defs>
+            <path id="country-shape"></path>
+          </svg>
+        </div>
+      </section>
+
+      <section class="card play-card" aria-label="Game controls">
+        <form id="guess-form" autocomplete="off" novalidate>
+          <label for="country-input">Guess a country</label>
+          <div class="combobox" id="country-combobox">
+            <input
+              id="country-input"
+              name="country"
+              type="text"
+              placeholder="Start typing..."
+              spellcheck="false"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="suggestion-list"
+              aria-activedescendant=""
+            />
+            <button type="button" class="clear-input" id="clear-input" aria-label="Clear input">×</button>
+            <ul id="suggestion-list" role="listbox" aria-label="Country suggestions"></ul>
+          </div>
+
+          <div class="actions">
+            <button type="submit" id="guess-button">Submit Guess</button>
+            <button type="button" id="new-game-button" class="secondary">New Round</button>
+          </div>
+
+          <p id="status-message" aria-live="polite" role="status"></p>
+        </form>
+
+        <div class="results" aria-live="polite">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Country</th>
+                <th>Distance</th>
+                <th>Direction</th>
+              </tr>
+            </thead>
+            <tbody id="guess-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
