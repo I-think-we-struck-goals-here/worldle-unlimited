@@ -6,32 +6,23 @@
     <title>Worldle Studio</title>
   </head>
   <body>
-    <div class="ambient-layer" aria-hidden="true">
-      <div class="orb orb-a"></div>
-      <div class="orb orb-b"></div>
-      <div class="orb orb-c"></div>
-      <div class="grain"></div>
-    </div>
-
     <main class="app-shell">
       <header class="app-header">
         <div>
-          <p class="eyebrow">Unlimited Local Play</p>
+          <p class="eyebrow">Competitive Streak</p>
           <h1>Worldle Studio</h1>
-          <p class="subtitle">Competitive streak mode with adjustable lives.</p>
+          <p class="subtitle">One life only. Difficulty sets max guesses per country.</p>
         </div>
         <div class="metrics-grid" aria-live="polite">
-          <div class="pill" id="mode-pill">Mode 3 Lives</div>
-          <div class="pill" id="score-pill">Score 0</div>
-          <div class="pill" id="lives-pill">Lives 3</div>
-          <div class="pill" id="round-pill">Country 1</div>
+          <div class="pill" id="difficulty-pill">Difficulty 3</div>
+          <div class="pill" id="score-pill">Streak 0</div>
         </div>
       </header>
 
       <section class="card competitive-card" aria-label="Competitive settings">
         <div class="mode-row">
-          <p class="mode-label">Life Mode</p>
-          <div class="mode-chips" id="mode-chips" role="radiogroup" aria-label="Life mode selection">
+          <p class="mode-label">Difficulty (max guesses)</p>
+          <div class="mode-chips" id="mode-chips" role="radiogroup" aria-label="Difficulty selection">
             <button type="button" class="mode-chip" data-mode="1" role="radio" aria-checked="false">1</button>
             <button type="button" class="mode-chip" data-mode="2" role="radio" aria-checked="false">2</button>
             <button type="button" class="mode-chip active" data-mode="3" role="radio" aria-checked="true">3</button>
@@ -39,10 +30,11 @@
             <button type="button" class="mode-chip" data-mode="5" role="radio" aria-checked="false">5</button>
           </div>
         </div>
+        <p class="mode-help">Difficulty changes apply when you press Restart Run.</p>
         <div class="leaderboard">
           <div class="leaderboard-head">
             <h2>Top 5 Scores</h2>
-            <p>Higher score wins. Mode controls guesses and lives.</p>
+            <p>Higher streak wins. Ties favor harder difficulty.</p>
           </div>
           <ol id="leaderboard-list" class="leaderboard-list"></ol>
         </div>

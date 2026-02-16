@@ -10,13 +10,11 @@ import {
 } from "./game/logic";
 
 const MAX_SUGGESTIONS = 8;
-const MIN_MODE_LIVES = 1;
-const MAX_MODE_LIVES = 5;
-const DEFAULT_MODE_LIVES = 3;
-const LEADERBOARD_STORAGE_KEY = "worldle-competitive-leaderboard-v1";
+const MIN_DIFFICULTY = 1;
+const MAX_DIFFICULTY = 5;
+const DEFAULT_DIFFICULTY = 3;
+const LEADERBOARD_STORAGE_KEY = "worldle-competitive-leaderboard-v2";
 const LEADERBOARD_LIMIT = 5;
-const NEXT_COUNTRY_DELAY_MS = 1050;
-const FAILURE_DELAY_MS = 1300;
 
 const aliasIndex = buildAliasIndex(countries);
 const searchIndex = countries.map((country) => ({
@@ -33,15 +31,12 @@ const newGameButton = document.querySelector("#new-game-button");
 const suggestionList = document.querySelector("#suggestion-list");
 const statusMessage = document.querySelector("#status-message");
 const guessesLeft = document.querySelector("#guesses-left");
-const modePill = document.querySelector("#mode-pill");
+const difficultyPill = document.querySelector("#difficulty-pill");
 const scorePill = document.querySelector("#score-pill");
-const livesPill = document.querySelector("#lives-pill");
-const roundPill = document.querySelector("#round-pill");
 const modeChips = document.querySelector("#mode-chips");
 const leaderboardList = document.querySelector("#leaderboard-list");
 const guessRows = document.querySelector("#guess-rows");
 const silhouettePath = document.querySelector("#country-shape");
-const silhouetteStage = document.querySelector("#silhouette-stage");
 
 const scoreDialog = document.querySelector("#score-dialog");
 const scoreForm = document.querySelector("#score-form");
@@ -52,28 +47,36 @@ const skipScoreButton = document.querySelector("#skip-score-button");
 let highlightedSuggestionIndex = -1;
 let visibleSuggestions = [];
 let selectedSuggestionId = null;
-let modeLives = DEFAULT_MODE_LIVES;
+let selectedDifficulty = DEFAULT_DIFFICULTY;
+let difficulty = DEFAULT_DIFFICULTY;
 let countryNumber = 0;
-let pendingRoundTimer = null;
 let leaderboard = loadLeaderboard();
-let run = createRun(modeLives);
-let game = createRound(countries, modeLives);
+let run = createRun();
+let game = createRound(countries, difficulty);
 
-function clampModeLives(value) {
+function clampDifficulty(value) {
   const parsed = Number.parseInt(String(value), 10);
   if (!Number.isFinite(parsed)) {
-    return DEFAULT_MODE_LIVES;
+    return DEFAULT_DIFFICULTY;
   }
-  return Math.min(MAX_MODE_LIVES, Math.max(MIN_MODE_LIVES, parsed));
+
+  return Math.min(MAX_DIFFICULTY, Math.max(MIN_DIFFICULTY, parsed));
 }
 
-function createRun(lives) {
+function createRun() {
   return {
-    modeLives: lives,
-    livesRemaining: lives,
     score: 0,
     status: "playing"
   };
+}
+
+function sanitizeName(value) {
+  const normalized = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 24);
+
+  return normalized || "Anonymous";
 }
 
 function parseLeaderboardEntry(entry) {
@@ -82,18 +85,17 @@ function parseLeaderboardEntry(entry) {
   }
 
   const score = Number.parseInt(entry.score, 10);
-  const mode = clampModeLives(entry.modeLives);
   const createdAt = Number.parseInt(entry.createdAt, 10);
-  const name = sanitizeName(entry.name);
+  const parsedDifficulty = clampDifficulty(entry.difficulty ?? entry.modeLives);
 
   if (!Number.isFinite(score) || score < 0 || !Number.isFinite(createdAt)) {
     return null;
   }
 
   return {
-    name,
+    name: sanitizeName(entry.name),
     score,
-    modeLives: mode,
+    difficulty: parsedDifficulty,
     createdAt
   };
 }
@@ -106,8 +108,8 @@ function sortLeaderboard(entries) {
         return b.score - a.score;
       }
 
-      if (a.modeLives !== b.modeLives) {
-        return a.modeLives - b.modeLives;
+      if (a.difficulty !== b.difficulty) {
+        return a.difficulty - b.difficulty;
       }
 
       return a.createdAt - b.createdAt;
@@ -141,15 +143,6 @@ function saveLeaderboard() {
   localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(leaderboard));
 }
 
-function sanitizeName(value) {
-  const normalized = String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 24);
-
-  return normalized || "Anonymous";
-}
-
 function renderLeaderboard() {
   leaderboardList.innerHTML = "";
 
@@ -176,8 +169,8 @@ function renderLeaderboard() {
 
     const meta = document.createElement("span");
     meta.className = "leader-meta";
-    const livesLabel = entry.modeLives === 1 ? "life" : "lives";
-    meta.textContent = `${entry.score} pts · ${entry.modeLives} ${livesLabel}`;
+    const guessLabel = entry.difficulty === 1 ? "guess" : "guesses";
+    meta.textContent = `${entry.score} pts · D${entry.difficulty} ${guessLabel}`;
 
     item.append(rank, name, meta);
     leaderboardList.append(item);
@@ -190,7 +183,7 @@ function registerScore(name) {
     {
       name: sanitizeName(name),
       score: run.score,
-      modeLives,
+      difficulty,
       createdAt: Date.now()
     }
   ]);
@@ -199,29 +192,111 @@ function registerScore(name) {
   renderLeaderboard();
 }
 
-function clearPendingRoundTimer() {
-  if (pendingRoundTimer !== null) {
-    window.clearTimeout(pendingRoundTimer);
-    pendingRoundTimer = null;
+function getTargetCountry() {
+  return countriesById.get(game.targetId);
+}
+
+function setStatus(message, tone = "info") {
+  statusMessage.textContent = message;
+  statusMessage.dataset.tone = tone;
+}
+
+function renderSilhouette() {
+  const target = getTargetCountry();
+  const feature = {
+    type: "Feature",
+    geometry: target.geometry,
+    properties: { name: target.name }
+  };
+
+  const projection = geoMercator();
+  projection.fitExtent(
+    [
+      [18, 18],
+      [422, 262]
+    ],
+    feature
+  );
+
+  const pathBuilder = geoPath(projection);
+  const pathData = pathBuilder(feature) ?? "";
+  silhouettePath.setAttribute("d", pathData);
+}
+
+function renderGuessRows() {
+  guessRows.innerHTML = "";
+
+  for (let i = 0; i < game.guesses.length; i += 1) {
+    const guess = game.guesses[i];
+    const row = document.createElement("tr");
+
+    if (guess.correct) {
+      row.classList.add("correct");
+    }
+
+    const attemptCell = document.createElement("td");
+    attemptCell.textContent = String(i + 1);
+
+    const countryCell = document.createElement("td");
+    countryCell.textContent = guess.name;
+
+    const distanceCell = document.createElement("td");
+    distanceCell.textContent = guess.distanceText;
+
+    const directionCell = document.createElement("td");
+    const directionArrow = document.createElement("span");
+    directionArrow.className = "direction-arrow";
+    directionArrow.textContent = guess.directionArrow;
+    directionCell.append(directionArrow, guess.directionLabel);
+
+    row.append(attemptCell, countryCell, distanceCell, directionCell);
+    guessRows.append(row);
   }
 }
 
-function queueNextCountry(delayMs) {
-  clearPendingRoundTimer();
-  pendingRoundTimer = window.setTimeout(() => {
-    pendingRoundTimer = null;
-    if (run.status !== "playing") {
-      return;
-    }
-    startCountryRound({
-      announce: true,
-      focus: true
-    });
-  }, delayMs);
+function renderModeChips() {
+  const chips = modeChips.querySelectorAll(".mode-chip");
+
+  for (const chip of chips) {
+    const chipDifficulty = clampDifficulty(chip.dataset.mode);
+    const active = chipDifficulty === selectedDifficulty;
+    chip.classList.toggle("active", active);
+    chip.setAttribute("aria-checked", active ? "true" : "false");
+  }
 }
 
-function getTargetCountry() {
-  return countriesById.get(game.targetId);
+function updateDashboard() {
+  const guessLabel = difficulty === 1 ? "guess" : "guesses";
+  difficultyPill.textContent = `Difficulty ${difficulty} · ${difficulty} ${guessLabel}`;
+  scorePill.textContent = `Streak ${run.score}`;
+}
+
+function updateControlState() {
+  if (run.status === "over") {
+    guessInput.disabled = true;
+    clearInputButton.disabled = true;
+    guessButton.disabled = true;
+    guessButton.textContent = "Run Over";
+    guessesLeft.textContent = "Run ended";
+    return;
+  }
+
+  if (game.status === "won") {
+    guessInput.disabled = true;
+    clearInputButton.disabled = true;
+    guessButton.disabled = false;
+    guessButton.textContent = "Next Country";
+    guessesLeft.textContent = "Solved - continue";
+    return;
+  }
+
+  guessInput.disabled = false;
+  clearInputButton.disabled = false;
+  guessButton.disabled = false;
+  guessButton.textContent = "Submit Guess";
+
+  const guessesRemaining = Math.max(0, game.maxGuesses - game.guesses.length);
+  guessesLeft.textContent = `${guessesRemaining} guess${guessesRemaining === 1 ? "" : "es"} left`;
 }
 
 function getSuggestions(value) {
@@ -300,99 +375,6 @@ function applySuggestion(suggestion) {
   guessInput.value = suggestion.name;
   selectedSuggestionId = suggestion.id;
   clearSuggestions();
-  setStatus("Country selected. Press submit to lock in your guess.", "info");
-}
-
-function setStatus(message, tone = "info") {
-  statusMessage.textContent = message;
-  statusMessage.dataset.tone = tone;
-}
-
-function renderSilhouette() {
-  const target = getTargetCountry();
-  const feature = {
-    type: "Feature",
-    geometry: target.geometry,
-    properties: { name: target.name }
-  };
-
-  const projection = geoMercator();
-  projection.fitExtent(
-    [
-      [18, 18],
-      [422, 262]
-    ],
-    feature
-  );
-
-  const pathBuilder = geoPath(projection);
-  const pathData = pathBuilder(feature) ?? "";
-
-  silhouettePath.setAttribute("d", pathData);
-  silhouetteStage.classList.remove("pulse");
-  window.requestAnimationFrame(() => {
-    silhouetteStage.classList.add("pulse");
-  });
-}
-
-function renderGuessRows() {
-  guessRows.innerHTML = "";
-
-  for (let i = 0; i < game.guesses.length; i += 1) {
-    const guess = game.guesses[i];
-    const row = document.createElement("tr");
-
-    if (guess.correct) {
-      row.classList.add("correct");
-    }
-
-    const attemptCell = document.createElement("td");
-    attemptCell.textContent = String(i + 1);
-
-    const countryCell = document.createElement("td");
-    countryCell.textContent = guess.name;
-
-    const distanceCell = document.createElement("td");
-    distanceCell.textContent = guess.distanceText;
-
-    const directionCell = document.createElement("td");
-    const directionArrow = document.createElement("span");
-    directionArrow.className = "direction-arrow";
-    directionArrow.textContent = guess.directionArrow;
-    directionCell.append(directionArrow, guess.directionLabel);
-
-    row.append(attemptCell, countryCell, distanceCell, directionCell);
-    guessRows.append(row);
-  }
-}
-
-function renderModeChips() {
-  const chips = modeChips.querySelectorAll(".mode-chip");
-
-  for (const chip of chips) {
-    const chipMode = clampModeLives(chip.dataset.mode);
-    const active = chipMode === modeLives;
-    chip.classList.toggle("active", active);
-    chip.setAttribute("aria-checked", active ? "true" : "false");
-  }
-}
-
-function updateControlState() {
-  const isPlaying = run.status === "playing" && game.status === "playing";
-  guessInput.disabled = !isPlaying;
-  clearInputButton.disabled = !isPlaying;
-  guessButton.disabled = !isPlaying;
-
-  const guessesRemaining = Math.max(0, game.maxGuesses - game.guesses.length);
-  guessesLeft.textContent = `${guessesRemaining} guess${guessesRemaining === 1 ? "" : "es"} left`;
-}
-
-function updateDashboard() {
-  const livesLabel = modeLives === 1 ? "Life" : "Lives";
-  modePill.textContent = `Mode ${modeLives} ${livesLabel}`;
-  scorePill.textContent = `Score ${run.score}`;
-  livesPill.textContent = `Lives ${run.livesRemaining}`;
-  roundPill.textContent = `Country ${countryNumber}`;
 }
 
 function resolveInputCountry() {
@@ -413,8 +395,7 @@ function resetGuessInput() {
 }
 
 function openScoreDialog() {
-  const livesLabel = modeLives === 1 ? "life" : "lives";
-  scoreSummary.textContent = `You scored ${run.score} in ${modeLives}-${livesLabel} mode.`;
+  scoreSummary.textContent = `Final streak: ${run.score} on difficulty ${difficulty}.`;
   playerNameInput.value = "";
 
   if (typeof scoreDialog.showModal === "function") {
@@ -445,7 +426,7 @@ function endRun(targetName) {
   run.status = "over";
   updateDashboard();
   updateControlState();
-  setStatus(`Out of lives. ${targetName} was the last answer. Final score: ${run.score}.`, "error");
+  setStatus(`Run over. ${targetName} was the answer. Final streak ${run.score}.`, "error");
   openScoreDialog();
 }
 
@@ -475,34 +456,23 @@ function lockGuess(country) {
   if (correct) {
     run.score += 1;
     game.status = "won";
-    setStatus(`Correct. ${target.name} found. Score: ${run.score}. Next country loading...`, "success");
+
     renderGuessRows();
     updateDashboard();
     updateControlState();
     resetGuessInput();
-    queueNextCountry(NEXT_COUNTRY_DELAY_MS);
+
+    setStatus(`Correct: ${target.name}. Streak ${run.score}. Press Next Country.`, "success");
     return;
   }
 
+  renderGuessRows();
+  updateControlState();
+  resetGuessInput();
+
   if (game.guesses.length >= game.maxGuesses) {
     game.status = "lost";
-    run.livesRemaining = Math.max(0, run.livesRemaining - 1);
-
-    renderGuessRows();
-    updateDashboard();
-    updateControlState();
-    resetGuessInput();
-
-    if (run.livesRemaining === 0) {
-      endRun(target.name);
-      return;
-    }
-
-    setStatus(
-      `No guesses left. It was ${target.name}. Life lost (${run.livesRemaining} left).`,
-      "warning"
-    );
-    queueNextCountry(FAILURE_DELAY_MS);
+    endRun(target.name);
     return;
   }
 
@@ -510,10 +480,6 @@ function lockGuess(country) {
     `${country.name}: ${comparison.distanceText} ${comparison.directionArrow} ${comparison.directionLabel}`,
     "info"
   );
-
-  renderGuessRows();
-  updateControlState();
-  resetGuessInput();
 }
 
 function startCountryRound({ announce = true, focus = false } = {}) {
@@ -522,17 +488,16 @@ function startCountryRound({ announce = true, focus = false } = {}) {
   }
 
   countryNumber += 1;
-  game = createRound(countries, modeLives);
+  game = createRound(countries, difficulty);
 
   guessRows.innerHTML = "";
   resetGuessInput();
   renderSilhouette();
-  updateDashboard();
   updateControlState();
 
   if (announce) {
     setStatus(
-      `Country ${countryNumber}. You have ${modeLives} guess${modeLives === 1 ? "" : "es"}.`,
+      `Country ${countryNumber}: ${difficulty} guess${difficulty === 1 ? "" : "es"} max.`,
       "info"
     );
   }
@@ -542,12 +507,11 @@ function startCountryRound({ announce = true, focus = false } = {}) {
   }
 }
 
-function startRun(nextModeLives = modeLives) {
-  clearPendingRoundTimer();
+function startRun() {
   closeScoreDialog();
 
-  modeLives = clampModeLives(nextModeLives);
-  run = createRun(modeLives);
+  difficulty = selectedDifficulty;
+  run = createRun();
   countryNumber = 0;
 
   renderModeChips();
@@ -555,7 +519,7 @@ function startRun(nextModeLives = modeLives) {
   startCountryRound({ announce: false, focus: true });
 
   setStatus(
-    `Mode ${modeLives} started: ${modeLives} guesses per country and ${modeLives} total lives.`,
+    `Run started. One life. ${difficulty} guess${difficulty === 1 ? "" : "es"} per country.`,
     "info"
   );
 }
@@ -618,7 +582,12 @@ function wireEvents() {
   guessForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
-    if (run.status !== "playing" || game.status !== "playing") {
+    if (run.status === "over") {
+      return;
+    }
+
+    if (game.status === "won") {
+      startCountryRound({ announce: true, focus: true });
       return;
     }
 
@@ -633,7 +602,7 @@ function wireEvents() {
   });
 
   newGameButton.addEventListener("click", () => {
-    startRun(modeLives);
+    startRun();
   });
 
   modeChips.addEventListener("click", (event) => {
@@ -642,20 +611,30 @@ function wireEvents() {
       return;
     }
 
-    const selectedMode = clampModeLives(button.dataset.mode);
-    startRun(selectedMode);
+    selectedDifficulty = clampDifficulty(button.dataset.mode);
+    renderModeChips();
+
+    if (selectedDifficulty === difficulty) {
+      setStatus(`Difficulty ${selectedDifficulty} is active.`, "info");
+      return;
+    }
+
+    setStatus(
+      `Difficulty ${selectedDifficulty} selected. Press Restart Run to apply.`,
+      "info"
+    );
   });
 
   scoreForm.addEventListener("submit", (event) => {
     event.preventDefault();
     registerScore(playerNameInput.value);
     closeScoreDialog();
-    setStatus("Score saved. Press Restart Run to play again.", "success");
+    setStatus("Score saved. Choose a difficulty, then press Restart Run.", "success");
   });
 
   skipScoreButton.addEventListener("click", () => {
     closeScoreDialog();
-    setStatus("Score skipped. Press Restart Run to play again.", "info");
+    setStatus("Score skipped. Press Restart Run when ready.", "info");
   });
 
   scoreDialog.addEventListener("cancel", (event) => {
@@ -671,5 +650,6 @@ function wireEvents() {
 }
 
 renderLeaderboard();
+renderModeChips();
 wireEvents();
-startRun(DEFAULT_MODE_LIVES);
+startRun();
