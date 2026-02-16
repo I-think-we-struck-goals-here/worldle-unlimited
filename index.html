@@ -18,10 +18,35 @@
         <div>
           <p class="eyebrow">Unlimited Local Play</p>
           <h1>Worldle Studio</h1>
-          <p class="subtitle">Guess the country from the silhouette in five turns.</p>
+          <p class="subtitle">Competitive streak mode with adjustable lives.</p>
         </div>
-        <div class="pill" id="round-pill">Round 1</div>
+        <div class="metrics-grid" aria-live="polite">
+          <div class="pill" id="mode-pill">Mode 3 Lives</div>
+          <div class="pill" id="score-pill">Score 0</div>
+          <div class="pill" id="lives-pill">Lives 3</div>
+          <div class="pill" id="round-pill">Country 1</div>
+        </div>
       </header>
+
+      <section class="card competitive-card" aria-label="Competitive settings">
+        <div class="mode-row">
+          <p class="mode-label">Life Mode</p>
+          <div class="mode-chips" id="mode-chips" role="radiogroup" aria-label="Life mode selection">
+            <button type="button" class="mode-chip" data-mode="1" role="radio" aria-checked="false">1</button>
+            <button type="button" class="mode-chip" data-mode="2" role="radio" aria-checked="false">2</button>
+            <button type="button" class="mode-chip active" data-mode="3" role="radio" aria-checked="true">3</button>
+            <button type="button" class="mode-chip" data-mode="4" role="radio" aria-checked="false">4</button>
+            <button type="button" class="mode-chip" data-mode="5" role="radio" aria-checked="false">5</button>
+          </div>
+        </div>
+        <div class="leaderboard">
+          <div class="leaderboard-head">
+            <h2>Top 5 Scores</h2>
+            <p>Higher score wins. Mode controls guesses and lives.</p>
+          </div>
+          <ol id="leaderboard-list" class="leaderboard-list"></ol>
+        </div>
+      </section>
 
       <section class="card silhouette-card" aria-label="Country silhouette">
         <div class="silhouette-title-row">
@@ -63,7 +88,7 @@
 
           <div class="actions">
             <button type="submit" id="guess-button">Submit Guess</button>
-            <button type="button" id="new-game-button" class="secondary">New Round</button>
+            <button type="button" id="new-game-button" class="secondary">Restart Run</button>
           </div>
 
           <p id="status-message" aria-live="polite" role="status"></p>
@@ -84,6 +109,20 @@
         </div>
       </section>
     </main>
+
+    <dialog id="score-dialog" class="score-dialog">
+      <form id="score-form" class="score-form" novalidate>
+        <p class="score-kicker">Run Over</p>
+        <h2>Save Your Score</h2>
+        <p id="score-summary"></p>
+        <label for="player-name">Name</label>
+        <input id="player-name" name="playerName" type="text" maxlength="24" placeholder="e.g. Zac" required />
+        <div class="actions">
+          <button type="submit" id="save-score-button">Save Score</button>
+          <button type="button" id="skip-score-button" class="secondary">Skip</button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="/src/main.js"></script>
   </body>
